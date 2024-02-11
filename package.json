@@ -17,6 +17,7 @@
 		"mocha": "^10.2.0",
 		"mongodb": "^3.3.4",
 		"request": "^2.88.2",
+		"request-promise": "^4.2.6",
 		"zombie": "^5.0.5"
 	},
 	"repository": {
