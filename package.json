@@ -1,36 +1,37 @@
 {
-  "name": "boilerplate-project-stockchecker",
-  "version": "0.0.1",
-  "description": "InfoSec project for freeCodeCamp",
-  "main": "server.js",
+  "name": "stock-price-checker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-  "start": "node -r esm server.js",
-  "test": "mocha --ui tdd ./tests/2_functional-tests.js"
+    "test": "jest",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "jest": {
+    "testEnvironment": "node"
   },
   "dependencies": {
-    "body-parser": "^1.19.0",
-    "chai": "^4.2.0",
-    "chai-http": "^4.3.0",
     "cors": "^2.8.5",
-    "dotenv": "^8.6.0",
+    "dotenv": "^8.2.0",
     "express": "^4.17.1",
-    "helmet": "^3.21.3",
-    "mocha": "^10.2.0",
-    "mongodb": "^3.3.4",
-    "node-fetch": "^2.6.0",
-    "request": "^2.88.2",
-    "zombie": "^5.0.5"
+    "helmet": "^4.1.0",
+    "mongodb": "^3.6.0",
+    "mongoose": "^5.10.2",
+    "node-fetch": "^2.6.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/freeCodeCamp/boilerplate-project-stockchecker"
-  },
-  "keywords": [
-    "node",
-    "express"
-  ],
-  "license": "MIT",
   "devDependencies": {
-		"esm": "^3.2.25"
-	}
+    "eslint": "^7.2.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-config-node": "^4.1.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-import": "^2.21.2",
+    "eslint-plugin-jest": "^23.20.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.1.4",
+    "jest": "^26.4.2",
+    "nodemon": "^2.0.4",
+    "prettier": "^2.1.1",
+    "supertest": "^4.0.2"
+  }
 }
