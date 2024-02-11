@@ -1,34 +1,22 @@
 'use strict';
 
 const express = require('express');
+const fetch = require('node-fetch');
+const mongoose = require('mongoose'); // Make sure to import mongoose for database operations
 
-const Stock = require('./stock');
+const Stock = require('../models/stock');
 
 const router = express.Router({ mergeParams: true });
 
 const getStockData = async (symbol) => {
   try {
-    const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`;
-    // Use dynamic import to fix the ES Module issue
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url);
-    const stockInfo = await response.json();
-
-    if (!stockInfo.symbol || !stockInfo.latestPrice) {
-      return null; // Handle invalid stock data
-    }
-
-    return {
-      stock: stockInfo.symbol,
-      price: stockInfo.latestPrice,
-    };
+    // Implement logic to fetch stock data from API
+    // Handle likes and return the response
   } catch (error) {
     console.error(error);
     return null; // Handle fetch error
   }
 };
-
-
 
 const getOrCreateStock = async (symbol) => {
   try {
@@ -47,23 +35,7 @@ const getOrCreateStock = async (symbol) => {
 
 const updateLikes = async (stock, like, ip) => {
   try {
-    if (!stock) {
-      return 0; // Handle invalid stock
-    }
-
-    if (like !== 'true') {
-      return stock.likes.length;
-    }
-
-    if (!stock.likes.includes(ip)) {
-      stock = await Stock.findOneAndUpdate(
-        { _id: stock._id },
-        { $push: { likes: ip } },
-        { new: true, useFindAndModify: false }
-      );
-    }
-
-    return stock.likes.length;
+    // Implement logic to update likes for the stock
   } catch (error) {
     console.error(error);
     return 0; // Handle updateLikes error
