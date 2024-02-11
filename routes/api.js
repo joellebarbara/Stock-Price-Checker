@@ -34,14 +34,17 @@ module.exports = function (app) {
 };
 
 async function processSingleStock(stockInfo, req) {
-  // Your single stock processing logic here
+  console.log('stockInfo:', stockInfo);  // Log stockInfo
   const likes = await updateLikes(await getOrCreateStock(stockInfo.symbol), req.query.like, req.ip);
+  console.log('likes:', likes);  // Log likes
   return {
     stock: stockInfo.symbol,
     price: stockInfo.latestPrice,
     likes,
   };
 }
+
+
 
 async function processMultipleStocks(requestedStocks, req) {
   // Your multiple stocks processing logic here
