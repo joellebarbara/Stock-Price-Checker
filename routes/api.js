@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 const Stock = require('../models/stock');
 
 const router = express.Router({ mergeParams: true });
