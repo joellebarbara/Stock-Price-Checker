@@ -6,12 +6,13 @@ const server = require('../server');
 chai.use(chaiHttp);
 
 suite('Functional Tests', function () {
-  var likes;
-  var rel_likes;
+  let likes;
+  let rel_likes;
 
   suite('GET /api/stock-prices => stockData object', function () {
     test('1 stock', function (done) {
-      chai.request(server)
+      chai
+        .request(server)
         .get('/api/stock-prices')
         .query({ stock: 'goog' })
         .end(function (err, res) {
@@ -25,7 +26,8 @@ suite('Functional Tests', function () {
     });
 
     test('1 stock with like', function (done) {
-      chai.request(server)
+      chai
+        .request(server)
         .get('/api/stock-prices')
         .query({ stock: 'goog', like: true })
         .end(function (err, res) {
@@ -41,7 +43,8 @@ suite('Functional Tests', function () {
     });
 
     test('1 stock with like again (ensure likes aren\'t double counted)', function (done) {
-      chai.request(server)
+      chai
+        .request(server)
         .get('/api/stock-prices')
         .query({ stock: 'goog', like: true })
         .end(function (err, res) {
@@ -56,7 +59,8 @@ suite('Functional Tests', function () {
     });
 
     test('2 stocks', function (done) {
-      chai.request(server)
+      chai
+        .request(server)
         .get('/api/stock-prices')
         .query({ stock: ['goog', 'msft'] })
         .end(function (err, res) {
@@ -77,7 +81,8 @@ suite('Functional Tests', function () {
     });
 
     test('2 stocks with like', function (done) {
-      chai.request(server)
+      chai
+        .request(server)
         .get('/api/stock-prices')
         .query({ stock: ['goog', 'msft'], like: true })
         .end(function (err, res) {
