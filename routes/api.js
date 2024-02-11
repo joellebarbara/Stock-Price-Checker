@@ -1,62 +1,118 @@
 'use strict';
 
-const expect = require('chai').expect;
-const MongoClient = require('mongodb').MongoClient;
-const request = require('request-promise');
+const express = require('express');
+const fetch = require('node-fetch');
+const Stock = require('../models/stock');
 
-const CONNECTION_STRING = process.env.DB;
+const router = express.Router({ mergeParams: true });
 
-module.exports = function (app) {
-  app.route('/api/stock-prices').get(async (req, res) => {
-    if (!Array.isArray(req.query.stock)) {
-      const requestedStock = req.query.stock;
+const getStockData = async (symbol) => {
+  try {
+    const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`;
+    const response = await fetch(url);
+    const stockInfo = await response.json();
 
-      try {
-        const body = await request(`https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${requestedStock}/quote`);
-        const stockData = await processSingleStock(JSON.parse(body), req);
-        res.json({ stockData });
-      } catch (error) {
-        console.error(error);
-        res.json({ error: 'Failed to fetch stock data' });
-      }
-    } else {
-      const requestedStocks = req.query.stock;
-
-      try {
-        const stockData = await processMultipleStocks(requestedStocks, req);
-        res.json({ stockData });
-      } catch (error) {
-        console.error(error);
-        res.json({ error: 'Failed to fetch stock data' });
-      }
+    if (!stockInfo.symbol || !stockInfo.latestPrice) {
+      return null; // Handle invalid stock data
     }
-  });
+
+    return {
+      stock: stockInfo.symbol,
+      price: stockInfo.latestPrice,
+    };
+  } catch (error) {
+    console.error(error);
+    return null; // Handle fetch error
+  }
 };
 
-async function processSingleStock(stockInfo, req) {
-  console.log('stockInfo:', stockInfo);  // Log stockInfo
-  const likes = await updateLikes(await getOrCreateStock(stockInfo.symbol), req.query.like, req.ip);
-  console.log('likes:', likes);  // Log likes
-  return {
-    stock: stockInfo.symbol,
-    price: stockInfo.latestPrice,
-    likes,
-  };
-}
+const getOrCreateStock = async (symbol) => {
+  try {
+    let stock = await Stock.findOne({ symbol });
 
+    if (!stock) {
+      stock = await Stock.create({ symbol });
+    }
 
+    return stock;
+  } catch (error) {
+    console.error(error);
+    return null; // Handle database error
+  }
+};
 
-async function processMultipleStocks(requestedStocks, req) {
-  // Your multiple stocks processing logic here
-  const [stockData1, stockData2] = await Promise.all(requestedStocks.map(async (stock) => {
-    const stockInfo = await getStock(stock);
-    return processSingleStock(stockInfo, req);
-  }));
+const updateLikes = async (stock, like, ip) => {
+  try {
+    if (!stock) {
+      return 0; // Handle invalid stock
+    }
 
-  const likes = [stockData1.likes, stockData2.likes];
-  stockData1.rel_likes = likes[0] - likes[1];
-  stockData2.rel_likes = likes[1] - likes[0];
+    if (like !== 'true') {
+      return stock.likes.length;
+    }
 
-  return [stockData1, stockData2];
-}
+    if (!stock.likes.includes(ip)) {
+      stock = await Stock.findOneAndUpdate(
+        { _id: stock._id },
+        { $push: { likes: ip } },
+        { new: true, useFindAndModify: false }
+      );
+    }
 
+    return stock.likes.length;
+  } catch (error) {
+    console.error(error);
+    return 0; // Handle updateLikes error
+  }
+};
+
+router.route('/').get(async (req, res) => {
+  try {
+    const { stock, like } = req.query;
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+    if (!stock) {
+      return res.json({ error: 'Stock parameter is required' });
+    }
+
+    if (typeof stock === 'string') {
+      const stockData = await getStockData(stock);
+
+      if (!stockData) {
+        return res.json({ error: 'Invalid stock data' });
+      }
+
+      stockData.likes = await updateLikes(await getOrCreateStock(stock), like, ip);
+
+      return res.json({ stockData });
+    }
+
+    if (stock.length !== 2) {
+      return res.json({ error: 'Invalid number of stocks provided' });
+    }
+
+    const [stockData1, stockData2] = await Promise.all([
+      getStockData(stock[0]),
+      getStockData(stock[1]),
+    ]);
+
+    if (!stockData1 || !stockData2) {
+      return res.json({ error: 'Invalid stock data' });
+    }
+
+    const likes = [
+      await updateLikes(await getOrCreateStock(stock[0]), like, ip),
+      await updateLikes(await getOrCreateStock(stock[1]), like, ip),
+    ];
+
+    stockData1.rel_likes = likes[0] - likes[1];
+    stockData2.rel_likes = likes[1] - likes[0];
+
+    return res.json({ stockData: [stockData1, stockData2] });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;
