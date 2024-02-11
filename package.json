@@ -1,37 +1,41 @@
 {
-	"name": "freecodecamp-project-stock-checker",
-	"description": "freeCodeCamp - Information Security and Quality Assurance Project: Stock Price Checker",
-	"version": "1.0.0",
-	"author": "Joelle",
-	"keywords": [
-		"node",
-		"express",
-		"freecodecamp"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/joellebarbara/boilerplate-bcrypt"
-	},
-	"license": "MIT",
-	"dependencies": {
-		"express": "^4.18.1",
-		"cors": "^2.8.5",
-		"body-parser": "^1.20.0",
-		"mongodb": "^4.8.0",
-		"node-fetch": "^3.3.2",
-		"dotenv": "^8.6.0",
-		"mocha": "^10.0.0",
-		"chai": "^4.3.6",
-		"chai-http": "^4.3.0",
-		"zombie": "^6.1.4",
-		"helmet": "^5.1.1",
-		"request": "^2.88.2"
-	},
-	"main": "server.js",
-	"scripts": {
-		"start": "node server.js"
-	},
-	"engines": {
-		"node": ">=16.12.0"
-	}
+  "name": "Stock-Price-Checker",
+  "version": "0.0.1",
+  "description": "Fcc project - stock price checker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "./node_modules/.bin/mocha -u tdd tests"
+  },
+  "author": "joellebarbara",
+  "dependencies": {
+    "axios": "^0.19.0",
+    "body-parser": "^1.19.0",
+    "chai": "^4.2.0",
+    "chai-http": "^4.3.0",
+    "co": "^4.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^8.1.0",
+    "express": "^4.17.1",
+    "helmet": "^3.21.0",
+    "mocha": "^6.2.0",
+    "mongodb": "^3.3.2",
+    "mongoose": "^5.7.10"
+  },
+  "engines": {
+    "node": "10.15.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joellebarbara/Stock-Price-Checker"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "mocha",
+    "chai",
+    "bootstrap"
+  ],
+  "license": "MIT",
+  "devDependencies": {}
 }
