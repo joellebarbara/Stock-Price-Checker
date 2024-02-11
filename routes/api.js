@@ -1,91 +1,97 @@
-'use strict';
+"use strict";
 
-const expect = require('chai').expect;
-const MongoClient = require('mongodb').MongoClient;
-const request = require('request');
+var expect = require("chai").expect;
+var MongoClient = require("mongodb");
+var db = require("../db/mongoose");
+var Stock = require("../models/stockModel");
+var stockPrice = require("../controllers/stockHandler");
 
-module.exports = function (app) {
-  app.route('/api/stock-prices').get(async (req, res) => {
+module.exports = function(app) {
+  app.route("/api/stock-prices").get(async (req, res) => {
+    const { query } = req;
+    //extract like from query string
+    let like = query.like === "true" ? true : false;
+    let ipAdd = like ? req.ip : "-1";
+
+    //extract stock from query string
+    const stocks = query.stock;
+
     try {
-      if (!req.query.stock) {
-        return res.json({ error: 'stock is required' });
-      }
-
-      const stocks = Array.isArray(req.query.stock) ? req.query.stock : [req.query.stock];
-      const like = req.query.like === 'true';
-
-      if (stocks.length > 2) {
-        return res.json({ error: 'only 1 or 2 stocks are supported' });
-      }
-
-      const fetchStockData = async (stock) => {
-        return new Promise((resolve, reject) => {
-          const apiUrl = `https://www.alphavantage.co/query?function=global_quote&symbol=${stock.toLowerCase()}&apikey=${process.env.STOCK_API_TOKEN}`;
-          request(apiUrl, (error, response, body) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(JSON.parse(body));
-            }
-          });
+      if (Array.isArray(stocks)) {
+        const promise = stocks.map(async stock => {
+          const stockSymbol = stock.toUpperCase();
+          const closingPrice = await stockPrice.getStockPrice(stockSymbol);
+          const doc = await updateDBase({ stockSymbol, closingPrice, ipAdd });
+          return doc;
         });
-      };
 
-      const updateStock = async (db, stockSymbol, ip, like) => {
-        const stockUpdate = {
-          $setOnInsert: { stock: stockSymbol },
-        };
+        let stockData = await Promise.all(promise);
+        const result = findAndReturnData(stockData);
+        return res.send(result);
+      }
 
-        if (like) {
-          stockUpdate.$addToSet = { likes: ip };
-        }
-
-        return db.collection('stock').findOneAndUpdate(
-          { stock: stockSymbol },
-          stockUpdate,
-          { upsert: true, returnDocument: 'after' }
-        );
-      };
-
-      const db = await MongoClient.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
-
-      const stockResults = await Promise.all(
-        stocks.map(async (stockSymbol) => {
-          const stockData = await fetchStockData(stockSymbol);
-
-          if (!stockData['Global Quote'] || !stockData['Global Quote']['05. price']) {
-            return { error: 'Invalid stock data' };
-          }
-
-          const price = Number.parseFloat(stockData['Global Quote']['05. price']);
-          const stockDocument = await updateStock(db.db(), stockSymbol.toUpperCase(), req.ip, like);
-          const likes = stockDocument.value.likes ? stockDocument.value.likes.length : 0;
-
-          return { stock: stockSymbol, price, likes };
-        })
-      );
-
-      if (stocks.length === 1) {
-        res.json({ stockData: stockResults[0] });
-      } else {
-        const rel_likes1 = stockResults[0].likes - stockResults[1].likes;
-        const rel_likes2 = stockResults[1].likes - stockResults[0].likes;
-
-        stockResults[0].rel_likes = rel_likes1;
-        stockResults[1].rel_likes = rel_likes2;
-
-        res.json({ stockData: stockResults });
+      if (!Array.isArray(stocks)) {
+        const stockSymbol = stocks.toUpperCase();
+        const closingPrice = await stockPrice.getStockPrice(stockSymbol);
+        const doc = await updateDBase({ stockSymbol, closingPrice, ipAdd });
+        const result = findAndReturnData(doc);
+        return res.send(result);
       }
     } catch (error) {
-      console.error(error);
-      res.json({ error: 'Internal server error' });
-    } finally {
-      if (db) {
-        db.close();
-      }
+      res.json(error);
     }
   });
 };
+
+async function updateDBase(props) {
+  //destructure props
+  const { stockSymbol, closingPrice, ipAdd } = props;
+
+  try {
+    let doc = await Stock.findOneAndUpdate(
+      { stock: stockSymbol },
+      { price: closingPrice, $addToSet: { favourite: ipAdd } },
+      { new: true, upsert: true }
+    );
+    return doc;
+  } catch (error) {
+    throw error;
+  }
+}
+
+function findAndReturnData(stocks) {
+  //merge stocks into array
+  stocks = [].concat(stocks);
+  //lookout for number of stock send in queryString eg: stock='goog' or stock="goog"&stock"msft"
+  const numberOfStocks = stocks.length;
+
+  let stockData = [];
+
+  if (numberOfStocks == 1) {
+    let stock = {
+      stockData: {
+        stock: stocks[0].stock,
+        price: stocks[0].price,
+        likes:
+          stocks[0].favourite.indexOf("-1") == -1
+            ? stocks[0].favourite.length
+            : stocks[0].favourite.length - 1
+      }
+    };
+    return stock;
+  }
+
+  if (numberOfStocks > 1) {
+    stocks.forEach((stock, idx) => {
+      stockData.push({
+        stock: stock.stock,
+        price: stock.price,
+        rel_likes:
+          stocks[idx].favourite.indexOf("-1") == -1 //if stocks contains "-1" then reduce it from total likes
+            ? stock.favourite.length
+            : stock.favourite.length - 1
+      });
+    });
+    return { stockData };
+  }
+}
