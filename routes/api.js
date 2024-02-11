@@ -1,97 +1,102 @@
-"use strict";
+'use strict';
+const StockModel = require("../models").Stock;
+const fetch = require("node-fetch");
 
-var expect = require("chai").expect;
-var MongoClient = require("mongodb");
-var db = require("../db/mongoose");
-var Stock = require("../models/stockModel");
-var stockPrice = require("../controllers/stockHandler");
-
-module.exports = function(app) {
-  app.route("/api/stock-prices").get(async (req, res) => {
-    const { query } = req;
-    //extract like from query string
-    let like = query.like === "true" ? true : false;
-    let ipAdd = like ? req.ip : "-1";
-
-    //extract stock from query string
-    const stocks = query.stock;
-
-    try {
-      if (Array.isArray(stocks)) {
-        const promise = stocks.map(async stock => {
-          const stockSymbol = stock.toUpperCase();
-          const closingPrice = await stockPrice.getStockPrice(stockSymbol);
-          const doc = await updateDBase({ stockSymbol, closingPrice, ipAdd });
-          return doc;
-        });
-
-        let stockData = await Promise.all(promise);
-        const result = findAndReturnData(stockData);
-        return res.send(result);
-      }
-
-      if (!Array.isArray(stocks)) {
-        const stockSymbol = stocks.toUpperCase();
-        const closingPrice = await stockPrice.getStockPrice(stockSymbol);
-        const doc = await updateDBase({ stockSymbol, closingPrice, ipAdd });
-        const result = findAndReturnData(doc);
-        return res.send(result);
-      }
-    } catch (error) {
-      res.json(error);
-    }
+async function createStock(stock, like, ip){
+  const newStock = new StockModel({
+    symbol : stock,
+    likes : like ? [ip] : [],
   });
-};
+  const savedNew = await newStock.save();
+  return savedNew;
+}
 
-async function updateDBase(props) {
-  //destructure props
-  const { stockSymbol, closingPrice, ipAdd } = props;
+async function findStock(stock) {
+  return await StockModel.findOne({ symbol : stock}).exec();
+}
 
-  try {
-    let doc = await Stock.findOneAndUpdate(
-      { stock: stockSymbol },
-      { price: closingPrice, $addToSet: { favourite: ipAdd } },
-      { new: true, upsert: true }
-    );
-    return doc;
-  } catch (error) {
-    throw error;
+async function saveStock(stock, like, ip) {
+  let saved = {};
+  const foundStock = await findStock(stock);
+  if(!foundStock){
+    const createsaved = await createStock(stock, like, ip);
+    saved = createsaved;
+    return saved;
+  } else {
+    if(like && foundStock.likes.indexOf(ip) == -1){
+      foundStock.likes.push(ip);
+    }
+    saved = await foundStock.save()
+    return saved
   }
 }
 
-function findAndReturnData(stocks) {
-  //merge stocks into array
-  stocks = [].concat(stocks);
-  //lookout for number of stock send in queryString eg: stock='goog' or stock="goog"&stock"msft"
-  const numberOfStocks = stocks.length;
+async function getStock(stock) {
+  const response = await fetch(
+    `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${stock}/quote`
+  );
+  const { symbol, latestPrice } = await response.json();
+  return { symbol, latestPrice };
+}
 
-  let stockData = [];
+module.exports = function (app) {
 
-  if (numberOfStocks == 1) {
-    let stock = {
-      stockData: {
-        stock: stocks[0].stock,
-        price: stocks[0].price,
-        likes:
-          stocks[0].favourite.indexOf("-1") == -1
-            ? stocks[0].favourite.length
-            : stocks[0].favourite.length - 1
+  app.route('/api/stock-prices').get(async function (req, res){
+      const { stock, like } = req.query;
+      if(Array.isArray(stock)){
+        console.log("stock", stock);
+
+        const { symbol, latestPrice } = await getStock(stock[0]);
+        const { symbol : symbol2, latestPrice : latestPrice2 } = await getStock(
+          stock[1]
+        );
+        const firststock = await saveStock(stock[0], like, req.ip);
+        const secondstock = await saveStock(stock[1], like, req.ip);
+
+        let stockData = [];
+        if (!symbol) {
+          stockData.push({
+            rel_likes: firststock.likes.length - secondstock.likes.length,
+          });
+        } else {
+          stockData.push({
+            stock: symbol,
+            price: latestPrice,
+            rel_likes:firststock.likes.length - secondstock.likes.length,
+          });
+        }
+
+        if (!symbol2) {
+          stockData.push({
+            rel_likes: secondstock.likes.length - firststock.likes.length,
+          });
+        } else {
+          stockData.push({
+            stock: symbol2,
+            price: latestPrice2,
+            rel_likes: secondstock.likes.length - firststock.likes.length,
+          });
+        }
+        res.json({
+          stockData,
+        });
+        return;
       }
-    };
-    return stock;
-  }
+      const { symbol, latestPrice } = await getStock(stock);
+      if(!symbol){
+        res.json({ stockData : { likes : like ? 1 : 0} });
+        return;
+      }
 
-  if (numberOfStocks > 1) {
-    stocks.forEach((stock, idx) => {
-      stockData.push({
-        stock: stock.stock,
-        price: stock.price,
-        rel_likes:
-          stocks[idx].favourite.indexOf("-1") == -1 //if stocks contains "-1" then reduce it from total likes
-            ? stock.favourite.length
-            : stock.favourite.length - 1
+      const oneStockData = await saveStock(symbol, like, req.ip);
+      console.log("one Stock Data - ", oneStockData);
+
+      res.json({
+        stockData : {
+          stock : symbol,
+          price : latestPrice,
+          likes : oneStockData.likes.length,
+        },
       });
     });
-    return { stockData };
-  }
-}
+  };
