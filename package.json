@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "description": "InfoSec project for freeCodeCamp",
   "main": "server.js",
-  "scripts": {
-    "start": "node -r esm server.js",
-    "test": "mocha --ui tdd ./tests/2_functional-tests.js"
-  },
+"scripts": {
+  "start": "node -r esm server.js",
+  "test": "mocha --ui tdd ./tests/2_functional-tests.js"
+},
   "dependencies": {
     "body-parser": "^1.19.0",
     "chai": "^4.2.0",
