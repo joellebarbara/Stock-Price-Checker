@@ -1,37 +1,35 @@
 {
-  "name": "stock-price-checker",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "jest",
-    "start": "node index.js",
-    "dev": "nodemon index.js"
-  },
-  "jest": {
-    "testEnvironment": "node"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^8.2.0",
-    "express": "^4.17.1",
-    "helmet": "^4.1.0",
-    "mongodb": "^3.6.0",
-    "mongoose": "^5.10.2",
-    "node-fetch": "^2.6.0"
-  },
-  "devDependencies": {
-    "eslint": "^7.2.0",
-    "eslint-config-airbnb-base": "^14.2.0",
-    "eslint-config-node": "^4.1.0",
-    "eslint-config-prettier": "^6.11.0",
-    "eslint-plugin-import": "^2.21.2",
-    "eslint-plugin-jest": "^23.20.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^3.1.4",
-    "jest": "^26.4.2",
-    "nodemon": "^2.0.4",
-    "prettier": "^2.1.1",
-    "supertest": "^4.0.2"
-  }
+	"name": "freecodecamp-project-stock-checker",
+	"description": "freeCodeCamp - Information Security and Quality Assurance Project: Stock Price Checker",
+	"version": "1.0.0",
+	"author": "Joelle",
+	"keywords": [
+		"node",
+		"express",
+		"freecodecamp"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/joellebarbara/boilerplate-bcrypt"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"express": "^4.18.1",
+		"cors": "^2.8.5",
+		"body-parser": "^1.20.0",
+		"mongodb": "^4.8.0",
+		"mocha": "^10.0.0",
+		"chai": "^4.3.6",
+		"chai-http": "^4.3.0",
+		"zombie": "^6.1.4",
+		"helmet": "^5.1.1",
+		"request": "^2.88.2"
+	},
+	"main": "server.js",
+	"scripts": {
+		"start": "node server.js"
+	},
+	"engines": {
+		"node": ">=16.12.0"
+	}
 }
