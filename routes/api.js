@@ -1,7 +1,6 @@
 'use strict';
 
 const express = require('express');
-const fetch = require('node-fetch');
 
 const Stock = require('../models/stock');
 
@@ -10,6 +9,8 @@ const router = express.Router({ mergeParams: true });
 const getStockData = async (symbol) => {
   try {
     const url = `https://stock-price-checker-proxy.freecodecamp.rocks/v1/stock/${symbol}/quote`;
+    // Use dynamic import to fix the ES Module issue
+    const fetch = (await import('node-fetch')).default;
     const response = await fetch(url);
     const stockInfo = await response.json();
 
@@ -26,6 +27,8 @@ const getStockData = async (symbol) => {
     return null; // Handle fetch error
   }
 };
+
+
 
 const getOrCreateStock = async (symbol) => {
   try {
