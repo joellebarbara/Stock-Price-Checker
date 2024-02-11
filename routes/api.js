@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 const mongoose = require('mongoose'); // Make sure to import mongoose for database operations
 
 const Stock = require('../models/stock');
