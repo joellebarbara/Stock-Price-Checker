@@ -30,6 +30,7 @@
     "express"
   ],
   "license": "MIT",
-	"devDependencies": {
+  "devDependencies": {
 		"esm": "^3.2.25"
 	}
+}
