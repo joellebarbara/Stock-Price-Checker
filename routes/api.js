@@ -1,123 +1,91 @@
-
 'use strict';
 
-var expect = require('chai').expect;
-var MongoClient = require('mongodb').MongoClient;
-var request = require('request');
+const expect = require('chai').expect;
+const MongoClient = require('mongodb').MongoClient;
+const request = require('request');
 
 module.exports = function (app) {
+  app.route('/api/stock-prices').get(async (req, res) => {
+    try {
+      if (!req.query.stock) {
+        return res.json({ error: 'stock is required' });
+      }
 
-	app.route('/api/stock-prices')
-		.get(function (req, res) {
-			if (req.query.stock === undefined || req.query.stock === '') {
-				return res.json({ error: 'stock is required' });
-			}
+      const stocks = Array.isArray(req.query.stock) ? req.query.stock : [req.query.stock];
+      const like = req.query.like === 'true';
 
-			let stock = req.query.stock;
-			let like = (req.query.like !== undefined && req.query.like === 'true' ? true : false);
+      if (stocks.length > 2) {
+        return res.json({ error: 'only 1 or 2 stocks are supported' });
+      }
 
-			if (Array.isArray(stock)) {
-				if (stock.length > 2) {
-					return res.json({ error: 'only 1 or 2 stock is supported' });
-				}
-			} else {
-				stock = [stock];
-			}
+      const fetchStockData = async (stock) => {
+        return new Promise((resolve, reject) => {
+          const apiUrl = `https://www.alphavantage.co/query?function=global_quote&symbol=${stock.toLowerCase()}&apikey=${process.env.STOCK_API_TOKEN}`;
+          request(apiUrl, (error, response, body) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(JSON.parse(body));
+            }
+          });
+        });
+      };
 
-			MongoClient.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true }, function (err, db) {
-				if (err) {
-					// console.log('Database error: ' + err);
-					return res.json({ error: 'error' });
-				} else {
-					stock[0] = stock[0].toUpperCase();
+      const updateStock = async (db, stockSymbol, ip, like) => {
+        const stockUpdate = {
+          $setOnInsert: { stock: stockSymbol },
+        };
 
-					let updateObj = {
-						$setOnInsert: {
-							stock: stock[0]
-							// likes: req['ip'] || []
-						}
-					};
+        if (like) {
+          stockUpdate.$addToSet = { likes: ip };
+        }
 
-					if (like) {
-						updateObj['$addToSet'] = {
-							likes: req['ip']
-						};
-					}
+        return db.collection('stock').findOneAndUpdate(
+          { stock: stockSymbol },
+          stockUpdate,
+          { upsert: true, returnDocument: 'after' }
+        );
+      };
 
-					db.db().collection('stock').findOneAndUpdate(
-						{
-							stock: stock[0]
-						},
-						updateObj,
-						{ upsert: true, returnDocument: 'after' }, // Insert object if not found, Return the updated document
-						function (error, result) {
-							let likes = (result.value.likes !== undefined ? result.value.likes.length : 0);
+      const db = await MongoClient.connect(process.env.MONGO_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
 
-							request('https://www.alphavantage.co/query?function=global_quote&symbol=' + stock[0].toLowerCase() + '&apikey=' + process.env.STOCK_API_TOKEN, function (error, response, body) {
-								body = JSON.parse(body);
+      const stockResults = await Promise.all(
+        stocks.map(async (stockSymbol) => {
+          const stockData = await fetchStockData(stockSymbol);
 
-								if (stock[1] === undefined) {
-									// 1 stock
-									let price = typeof body['Global Quote'] !== 'undefined' && typeof body['Global Quote']['05. price'] !== 'undefined' ? body['Global Quote']['05. price'] : 0;
-									price = Number.parseFloat(price);
+          if (!stockData['Global Quote'] || !stockData['Global Quote']['05. price']) {
+            return { error: 'Invalid stock data' };
+          }
 
-									return res.json({ stockData: { stock: stock[0], price: price, likes: likes } });
-								} else {
-									// 2 stocks
-									let price = typeof body['Global Quote'] !== 'undefined' && typeof body['Global Quote']['05. price'] !== 'undefined' ? body['Global Quote']['05. price'] : 0;
-									price = Number.parseFloat(price);
+          const price = Number.parseFloat(stockData['Global Quote']['05. price']);
+          const stockDocument = await updateStock(db.db(), stockSymbol.toUpperCase(), req.ip, like);
+          const likes = stockDocument.value.likes ? stockDocument.value.likes.length : 0;
 
-									let stock_result = [];
-									stock_result.push({ stock: stock[0], price: price, rel_likes: likes });
+          return { stock: stockSymbol, price, likes };
+        })
+      );
 
-									stock[1] = stock[1].toUpperCase();
+      if (stocks.length === 1) {
+        res.json({ stockData: stockResults[0] });
+      } else {
+        const rel_likes1 = stockResults[0].likes - stockResults[1].likes;
+        const rel_likes2 = stockResults[1].likes - stockResults[0].likes;
 
-									updateObj = {
-										$setOnInsert: {
-											stock: stock[1]
-											// likes: req['ip'] || []
-										}
-									};
+        stockResults[0].rel_likes = rel_likes1;
+        stockResults[1].rel_likes = rel_likes2;
 
-									if (like) {
-										updateObj['$addToSet'] = {
-											likes: req['ip']
-										};
-									}
-
-									db.db().collection('stock').findOneAndUpdate(
-										{
-											stock: stock[1]
-										},
-										updateObj,
-										{ upsert: true, returnDocument: 'after' }, // Insert object if not found, Return the updated document
-										function (error, result2) {
-											likes = (result2.value.likes !== undefined ? result2.value.likes.length : 0);
-
-											request('https://www.alphavantage.co/query?function=global_quote&symbol=' + stock[1].toLowerCase() + '&apikey=' + process.env.STOCK_API_TOKEN, function (error, response, body2) {
-												body2 = JSON.parse(body2);
-
-												let price = typeof body2['Global Quote'] !== 'undefined' && typeof body2['Global Quote']['05. price'] !== 'undefined' ? body2['Global Quote']['05. price'] : 0;
-												price = Number.parseFloat(price);
-
-												stock_result.push({ stock: stock[1], price: price, rel_likes: likes });
-
-												let rel_likes1 = stock_result[0]['rel_likes'] - stock_result[1]['rel_likes'];
-												let rel_likes2 = stock_result[1]['rel_likes'] - stock_result[0]['rel_likes'];
-
-												stock_result[0]['rel_likes'] = rel_likes1;
-												stock_result[1]['rel_likes'] = rel_likes2;
-
-												return res.json({ stockData: stock_result });
-											});
-										}
-									);
-								}
-							});
-						}
-					);
-				}
-			});
-		});
-
+        res.json({ stockData: stockResults });
+      }
+    } catch (error) {
+      console.error(error);
+      res.json({ error: 'Internal server error' });
+    } finally {
+      if (db) {
+        db.close();
+      }
+    }
+  });
 };
