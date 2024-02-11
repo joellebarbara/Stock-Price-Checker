@@ -2,7 +2,7 @@
 
 const express = require('express');
 
-const Stock = require('../models/stock');
+const Stock = require('./stock');
 
 const router = express.Router({ mergeParams: true });
 
