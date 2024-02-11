@@ -1,94 +1,123 @@
+
 'use strict';
 
-const express = require('express');
-import fetch from 'node-fetch';
-const mongoose = require('mongoose'); // Make sure to import mongoose for database operations
+var expect = require('chai').expect;
+var MongoClient = require('mongodb').MongoClient;
+var request = require('request');
 
-const Stock = require('../models/stock');
+module.exports = function (app) {
 
-const router = express.Router({ mergeParams: true });
+	app.route('/api/stock-prices')
+		.get(function (req, res) {
+			if (req.query.stock === undefined || req.query.stock === '') {
+				return res.json({ error: 'stock is required' });
+			}
 
-const getStockData = async (symbol) => {
-  try {
-    // Implement logic to fetch stock data from API
-    // Handle likes and return the response
-  } catch (error) {
-    console.error(error);
-    return null; // Handle fetch error
-  }
+			let stock = req.query.stock;
+			let like = (req.query.like !== undefined && req.query.like === 'true' ? true : false);
+
+			if (Array.isArray(stock)) {
+				if (stock.length > 2) {
+					return res.json({ error: 'only 1 or 2 stock is supported' });
+				}
+			} else {
+				stock = [stock];
+			}
+
+			MongoClient.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true }, function (err, db) {
+				if (err) {
+					// console.log('Database error: ' + err);
+					return res.json({ error: 'error' });
+				} else {
+					stock[0] = stock[0].toUpperCase();
+
+					let updateObj = {
+						$setOnInsert: {
+							stock: stock[0]
+							// likes: req['ip'] || []
+						}
+					};
+
+					if (like) {
+						updateObj['$addToSet'] = {
+							likes: req['ip']
+						};
+					}
+
+					db.db().collection('stock').findOneAndUpdate(
+						{
+							stock: stock[0]
+						},
+						updateObj,
+						{ upsert: true, returnDocument: 'after' }, // Insert object if not found, Return the updated document
+						function (error, result) {
+							let likes = (result.value.likes !== undefined ? result.value.likes.length : 0);
+
+							request('https://www.alphavantage.co/query?function=global_quote&symbol=' + stock[0].toLowerCase() + '&apikey=' + process.env.STOCK_API_TOKEN, function (error, response, body) {
+								body = JSON.parse(body);
+
+								if (stock[1] === undefined) {
+									// 1 stock
+									let price = typeof body['Global Quote'] !== 'undefined' && typeof body['Global Quote']['05. price'] !== 'undefined' ? body['Global Quote']['05. price'] : 0;
+									price = Number.parseFloat(price);
+
+									return res.json({ stockData: { stock: stock[0], price: price, likes: likes } });
+								} else {
+									// 2 stocks
+									let price = typeof body['Global Quote'] !== 'undefined' && typeof body['Global Quote']['05. price'] !== 'undefined' ? body['Global Quote']['05. price'] : 0;
+									price = Number.parseFloat(price);
+
+									let stock_result = [];
+									stock_result.push({ stock: stock[0], price: price, rel_likes: likes });
+
+									stock[1] = stock[1].toUpperCase();
+
+									updateObj = {
+										$setOnInsert: {
+											stock: stock[1]
+											// likes: req['ip'] || []
+										}
+									};
+
+									if (like) {
+										updateObj['$addToSet'] = {
+											likes: req['ip']
+										};
+									}
+
+									db.db().collection('stock').findOneAndUpdate(
+										{
+											stock: stock[1]
+										},
+										updateObj,
+										{ upsert: true, returnDocument: 'after' }, // Insert object if not found, Return the updated document
+										function (error, result2) {
+											likes = (result2.value.likes !== undefined ? result2.value.likes.length : 0);
+
+											request('https://www.alphavantage.co/query?function=global_quote&symbol=' + stock[1].toLowerCase() + '&apikey=' + process.env.STOCK_API_TOKEN, function (error, response, body2) {
+												body2 = JSON.parse(body2);
+
+												let price = typeof body2['Global Quote'] !== 'undefined' && typeof body2['Global Quote']['05. price'] !== 'undefined' ? body2['Global Quote']['05. price'] : 0;
+												price = Number.parseFloat(price);
+
+												stock_result.push({ stock: stock[1], price: price, rel_likes: likes });
+
+												let rel_likes1 = stock_result[0]['rel_likes'] - stock_result[1]['rel_likes'];
+												let rel_likes2 = stock_result[1]['rel_likes'] - stock_result[0]['rel_likes'];
+
+												stock_result[0]['rel_likes'] = rel_likes1;
+												stock_result[1]['rel_likes'] = rel_likes2;
+
+												return res.json({ stockData: stock_result });
+											});
+										}
+									);
+								}
+							});
+						}
+					);
+				}
+			});
+		});
+
 };
-
-const getOrCreateStock = async (symbol) => {
-  try {
-    let stock = await Stock.findOne({ symbol });
-
-    if (!stock) {
-      stock = await Stock.create({ symbol });
-    }
-
-    return stock;
-  } catch (error) {
-    console.error(error);
-    return null; // Handle database error
-  }
-};
-
-const updateLikes = async (stock, like, ip) => {
-  try {
-    // Implement logic to update likes for the stock
-  } catch (error) {
-    console.error(error);
-    return 0; // Handle updateLikes error
-  }
-};
-
-router.route('/').get(async (req, res) => {
-  try {
-    const { stock, like } = req.query;
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    if (!stock) {
-      return res.json({ error: 'Stock parameter is required' });
-    }
-
-    if (typeof stock === 'string') {
-      const stockData = await getStockData(stock);
-
-      if (!stockData) {
-        return res.json({ error: 'Invalid stock data' });
-      }
-
-      stockData.likes = await updateLikes(await getOrCreateStock(stock), like, ip);
-
-      return res.json({ stockData });
-    }
-
-    if (stock.length !== 2) {
-      return res.json({ error: 'Invalid number of stocks provided' });
-    }
-
-    const [stockData1, stockData2] = await Promise.all([
-      getStockData(stock[0]),
-      getStockData(stock[1]),
-    ]);
-
-    if (!stockData1 || !stockData2) {
-      return res.json({ error: 'Invalid stock data' });
-    }
-
-    const likes = [
-      await updateLikes(await getOrCreateStock(stock[0]), like, ip),
-      await updateLikes(await getOrCreateStock(stock[1]), like, ip),
-    ];
-
-    stockData1.rel_likes = likes[0] - likes[1];
-    stockData2.rel_likes = likes[1] - likes[0];
-
-    return res.json({ stockData: [stockData1, stockData2] });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-module.exports = router;
